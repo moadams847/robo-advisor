@@ -6,157 +6,165 @@ from scipy.stats import norm
 import yfinance as yf
 import streamlit as st
 
-# Streamlit app configuration
+# Streamlit config
 st.set_page_config(layout="wide")
-st.title("Portfolio Analysis Tool")
+st.title("Robo Advisor by Enron Group")
 
-# Sidebar controls
+st.subheader("Analyze your investment portfolio with our tool.")
+
+# Sidebar Inputs
 with st.sidebar:
     st.header("Portfolio Configuration")
     risk_level = st.select_slider("Risk Level", options=[1, 2, 3, 4], value=3)
-    
     investment_objective = st.selectbox(
         "Investment Objective",
-        ["Capital Preservation", "Balanced Growth", "Dynamic Growth",  ],
+        ["Capital Preservation", "Balanced Growth", "Dynamic Growth"],
         index=1
     )
     portfolio_value = st.number_input("Portfolio Value ($)", min_value=1000, value=1000, step=1000)
     confidence_level = st.slider("Confidence Level for VaR", 0.90, 0.99, 0.95, 0.01)
     years = st.slider("Analysis Period (Years)", 1, 10, 3)
+    
+    placeholder = st.empty()
+    placeholder.info("Deciding on your investment strategy...")
+    
+    st.write("This tool helps you analyze your investment portfolio based on your risk level and investment objective.")
+    
+    st.write(" Developed by **Mohammed Adams** ")
+    
+# Portfolio Strategy
+tickers, weights = [], []
 
-# Asset allocation based on risk and objective
-# Strategy = Fixed Income 1 (for any objective when risk_level == 1)
-if risk_level == 1 and investment_objective in ("Capital Preservation", "Balanced Growth", "Dynamic Growth"):
+if risk_level == 1:
+    investmentStrategy = "Fixed income"
+    placeholder.success("Fixed income strategy selected.")
     tickers = ['EMB', 'VWOB', 'BNDX', 'AGG', 'TFI']
-    weights = np.array([0.2, 0.2, 0.2, 0.2, 0.2])
+    weights = np.repeat(1/5, 5)
 
-#strategy = Income 2
 elif risk_level == 2 and investment_objective == "Capital Preservation":
+    investmentStrategy = "Income"
+    placeholder.success("Income strategy selected.")
     tickers = ['EMB', 'VWOB', 'BNDX', 'VEA', 'IEFA']
     weights = [0.3, 0.3, 0.3, 0.05, 0.05]
 
-#strategy = Balanced 3
-elif risk_level == 2 and investment_objective == "Balanced Growth":
+elif risk_level == 2 and investment_objective in ["Balanced Growth", "Dynamic Growth"]:
+    investmentStrategy = "Balanced Growth"
+    placeholder.success("Balanced Growth strategy selected.")
     tickers = ['EMB', 'VWOB', 'BNDX', 'VEA', 'IEFA']
     weights = [0.166, 0.166, 0.166, 0.25, 0.25]
-    
-#strategy = Balanced 3
-elif risk_level == 2 and investment_objective == "Dynamic Growth":
-    tickers = ['EMB', 'VWOB', 'BNDX', 'VEA', 'IEFA']
-    weights = [0.166, 0.166, 0.166, 0.25, 0.25]
-    
 
-#strategy = Balanced 3
 elif risk_level == 3 and investment_objective == "Balanced Growth":
+    investmentStrategy = "Balanced Growth"
+    placeholder.success("Balanced Growth strategy selected.")
     tickers = ['EMB', 'VWOB', 'BNDX', 'VEA', 'IEFA']
     weights = [0.166, 0.166, 0.166, 0.25, 0.25]
-    
-#strategy = Growth 4
+
 elif risk_level == 4 and investment_objective == "Dynamic Growth":
+    investmentStrategy = "Growth"
+    placeholder.success("Growth strategy selected.")
     tickers = ['VTI', 'VTV', 'VOE', 'VEA', 'IEFA']
-    weights = [0.2, 0.2, 0.2, 0.2, 0.2]
-    
-# Date range calculation
-end_date = dt.datetime.now()
-start_date = end_date - dt.timedelta(days=365 * years)
+    weights = np.repeat(1/5, 5)
 
-# Download data and process
-@st.cache_data
-def get_portfolio_data(tickers, start_date, end_date):
-    adjusted_close = pd.DataFrame()
-    full_names = []
-    expense_ratios = []
+# Proceed only if tickers and weights are set
+if tickers and len(weights) > 0:
     
-    for ticker in tickers:
-        data = yf.download(ticker, start=start_date, end=end_date)
-        adjusted_close[ticker] = data['Close']
+    # Dates
+    end_date = dt.datetime.now()
+    start_date = end_date - dt.timedelta(days=365 * years)
+
+    @st.cache_data
+    def get_portfolio_data(tickers, start, end):
+        prices = pd.DataFrame()
+        names, expenses = [], []
+
+        for ticker in tickers:
+            try:
+                data = yf.download(ticker, start=start, end=end)
+                prices[ticker] = data['Close']
+                info = yf.Ticker(ticker).info
+                names.append(info.get('shortName', ticker))
+                expenses.append(info.get('annualReportExpenseRatio', 0.0))
+            except Exception as e:
+                st.error(f"Error downloading {ticker}: {e}")
+                prices[ticker] = np.nan
+                names.append(ticker)
+                expenses.append(0.0)
         
-        etf = yf.Ticker(ticker)
-        info = etf.info
-        full_names.append(info.get('shortName', ticker))
-        expense_ratios.append(info.get('annualReportExpenseRatio', 0.0))
-    
-    return adjusted_close, full_names, expense_ratios
+        return prices.dropna(axis=1), names, expenses
 
-adjusted_close, full_names, expense_ratios = get_portfolio_data(tickers, start_date, end_date)
+    prices, full_names, expense_ratios = get_portfolio_data(tickers, start_date, end_date)
 
-# Calculate returns
-log_returns = np.log(adjusted_close / adjusted_close.shift(1)).dropna()
-portfolio_returns = (log_returns * weights).sum(axis=1)
+    # Check if we have price data
+    if not prices.empty:
+        weights = np.array(weights[:len(prices.columns)])
+        log_returns = np.log(prices / prices.shift(1)).dropna()
+        portfolio_returns = (log_returns * weights).sum(axis=1)
 
-# Performance metrics
-average_return = portfolio_returns.mean()
-annualized_return = (1 + average_return) ** 252 - 1
-historical_variance = portfolio_returns.var()
-annualized_variance = historical_variance * 252
-DividendAmount = round(annualized_variance * portfolio_value, 2)
+        avg_daily_return = portfolio_returns.mean()
+        annual_return = (1 + avg_daily_return) ** 252 - 1
+        annual_variance = portfolio_returns.var() * 252
+        dividend_amount = round(annual_variance * portfolio_value, 2)
 
-# VaR calculation
-day_window = 5
-range_returns = portfolio_returns.rolling(window=day_window).sum().dropna()
-var = -np.percentile(range_returns, 100 - (confidence_level * 100)) * portfolio_value
+        # Value at Risk
+        day_window = 5
+        rolling_returns = portfolio_returns.rolling(window=day_window).sum().dropna()
+        var = -np.percentile(rolling_returns, 100 - confidence_level * 100) * portfolio_value
 
-# Display results
-col1, col2 = st.columns(2)
+        # Display Outputs
+        col1, col2 = st.columns(2)
 
-with col1:
-    st.header("Portfolio Allocation")
-    
-    # Create DataFrame for display
-    portfolio_df = pd.DataFrame({
-        'Ticker': tickers,
-        'Name': full_names,
-        'Weight': weights,
+        with col1:
+            st.header("Portfolio Allocation")
+            df_alloc = pd.DataFrame({
+                "Ticker": prices.columns,
+                "Name": full_names[:len(prices.columns)],
+                "Weight": weights
+            })
+            st.dataframe(df_alloc.style.format({"Weight": "{:.0%}"}))
 
-    })
-    
-    st.dataframe(portfolio_df.style.format({'Weight': '{:.0%}'}))
-    
-    # Pie chart
-    fig1, ax1 = plt.subplots(figsize=(8, 6))
-    labels = [f"{t}\n({n.split(' ')[0]})" for t, n in zip(tickers, full_names)]
-    ax1.pie(weights, labels=labels, autopct='%1.1f%%', startangle=90,
-            colors=['#ff9999','#66b3ff','#99ff99','#ffcc99','#c2c2f0'])
-    ax1.axis('equal')
-    st.pyplot(fig1)
+            fig1, ax1 = plt.subplots()
+            ax1.pie(weights, labels=[f"{t}\n({n.split()[0]})" for t, n in zip(prices.columns, full_names)],
+                    autopct='%1.1f%%', startangle=90)
+            ax1.axis("equal")
+            st.pyplot(fig1)
 
-with col2:
-    st.header("Performance Metrics")
-    
-    metrics_df = pd.DataFrame({
-        'Metric': ['Dividend Yield', 'Dividen dAmount', 'Annualized Volatility',  
-                  f'{day_window}-day {confidence_level:.0%} VaR'],
-        'Value': [f"{annualized_return*100:.2f}%", DividendAmount,
-                 f"{np.sqrt(annualized_variance)*100:.2f}%",
-                 f"${var:,.2f}"]
-    })
-    st.dataframe(metrics_df)
-    
-    # Returns plot
-    fig2, ax2 = plt.subplots(figsize=(10, 4))
-    portfolio_returns.plot(ax=ax2)
-    ax2.set_title("Daily Returns")
-    ax2.set_ylabel("Return")
-    ax2.grid(True)
-    ax2.grid(True)
-    st.pyplot(fig2)
-    
- 
-# VaR distribution plot
-st.header(f"Distribution of Portfolio {day_window}-day Returns (Dollar Value)")
-fig3, ax3 = plt.subplots(figsize=(10, 5))
-range_returns_dollar = range_returns * portfolio_value
-ax3.hist(range_returns_dollar, bins=50, alpha=0.7, color='blue')
-ax3.axvline(-var, color='red', linestyle='dashed', linewidth=2)
-ax3.set_xlabel("Returns ($)")
-ax3.set_ylabel("Frequency")
-ax3.grid(True)
-st.pyplot(fig3)
+        with col2:
+            st.header("Performance Metrics")
+            df_metrics = pd.DataFrame({
+                "Metric": ["Annual Return", "Dividend Amount", "Annual Volatility", f"{day_window}-Day {int(confidence_level*100)}% VaR"],
+                "Value": [
+                    f"{annual_return*100:.2f}%",
+                    f"${dividend_amount:,.2f}",
+                    f"{np.sqrt(annual_variance)*100:.2f}%",
+                    f"${var:,.2f}"
+                ]
+            })
+            st.dataframe(df_metrics)
 
-# Display raw data if needed
-if st.checkbox("Show raw data"):
-    st.subheader("Adjusted Close Prices")
-    st.dataframe(adjusted_close)
-    
-    st.subheader("Log Returns")
-    st.dataframe(log_returns)
+            fig2, ax2 = plt.subplots()
+            portfolio_returns.plot(ax=ax2)
+            ax2.set_title("Daily Returns")
+            ax2.grid(True)
+            st.pyplot(fig2)
+
+        st.header(f"Distribution of {day_window}-Day Returns ($)")
+        fig3, ax3 = plt.subplots()
+        ax3.hist(rolling_returns * portfolio_value, bins=50, color="blue", alpha=0.7)
+        ax3.axvline(-var, color="red", linestyle="--", label="VaR")
+        ax3.set_xlabel("Return ($)")
+        ax3.set_ylabel("Frequency")
+        ax3.legend()
+        st.pyplot(fig3)
+
+        # Show raw data
+        if st.checkbox("Show raw data"):
+            st.subheader("Adjusted Close Prices")
+            st.dataframe(prices)
+
+            st.subheader("Log Returns")
+            st.dataframe(log_returns)
+
+    else:
+        st.error("No valid price data was fetched. Please try different tickers or a shorter time period.")
+else:
+    st.warning("Please select a valid combination of risk level and investment objective to generate a portfolio.")
