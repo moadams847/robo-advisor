@@ -30,7 +30,7 @@ with st.sidebar:
     
     st.write("This tool helps you analyze your investment portfolio based on your risk level and investment objective.")
     
-    st.write(" Developed by **Mohammed Adams** ")
+    #st.write(" Developed by **Mohammed Adams** ")
     
 # Portfolio Strategy
 tickers, weights = [], []
