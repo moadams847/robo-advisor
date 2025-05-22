@@ -15,7 +15,7 @@ st.subheader("Analyze your investment portfolio with our tool.")
 # Sidebar Inputs
 with st.sidebar:
     st.header("Portfolio Configuration")
-    risk_level = st.select_slider("Risk Level", options=[1, 2, 3, 4], value=3)
+    risk_level = st.select_slider("Risk Level", options=["low", "Moderate", "Considerable", "High"], value="Considerable")
     investment_objective = st.selectbox(
         "Investment Objective",
         ["Capital Preservation", "Balanced Growth", "Dynamic Growth"],
@@ -30,36 +30,36 @@ with st.sidebar:
     
     st.write("This tool helps you analyze your investment portfolio based on your risk level and investment objective.")
     
-    #st.write(" Developed by **Mohammed Adams** ")
+    st.write(" Developed by **Mohammed Adams** ")
     
 # Portfolio Strategy
 tickers, weights = [], []
 
-if risk_level == 1:
+if risk_level == "low":
     investmentStrategy = "Fixed income"
     placeholder.success("Fixed income strategy selected.")
     tickers = ['EMB', 'VWOB', 'BNDX', 'AGG', 'TFI']
     weights = np.repeat(1/5, 5)
 
-elif risk_level == 2 and investment_objective == "Capital Preservation":
+elif risk_level == "Moderate" and investment_objective == "Capital Preservation":
     investmentStrategy = "Income"
     placeholder.success("Income strategy selected.")
     tickers = ['EMB', 'VWOB', 'BNDX', 'VEA', 'IEFA']
     weights = [0.3, 0.3, 0.3, 0.05, 0.05]
 
-elif risk_level == 2 and investment_objective in ["Balanced Growth", "Dynamic Growth"]:
+elif risk_level == "Moderate" and investment_objective in ["Balanced Growth", "Dynamic Growth"]:
     investmentStrategy = "Balanced Growth"
     placeholder.success("Balanced Growth strategy selected.")
     tickers = ['EMB', 'VWOB', 'BNDX', 'VEA', 'IEFA']
     weights = [0.166, 0.166, 0.166, 0.25, 0.25]
 
-elif risk_level == 3 and investment_objective == "Balanced Growth":
+elif risk_level == "Considerable" and investment_objective == "Balanced Growth":
     investmentStrategy = "Balanced Growth"
     placeholder.success("Balanced Growth strategy selected.")
     tickers = ['EMB', 'VWOB', 'BNDX', 'VEA', 'IEFA']
     weights = [0.166, 0.166, 0.166, 0.25, 0.25]
 
-elif risk_level == 4 and investment_objective == "Dynamic Growth":
+elif risk_level == "High" and investment_objective == "Dynamic Growth":
     investmentStrategy = "Growth"
     placeholder.success("Growth strategy selected.")
     tickers = ['VTI', 'VTV', 'VOE', 'VEA', 'IEFA']
